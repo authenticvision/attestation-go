@@ -5,8 +5,8 @@ import (
 	"encoding/json"
 	"errors"
 	"github.com/authenticvision/attestation-go/paserk"
-	"github.com/authenticvision/httputil-go"
-	"github.com/authenticvision/httputil-go/httplog"
+	"github.com/authenticvision/util-go/httplog"
+	"github.com/authenticvision/util-go/httputil"
 	"go.uber.org/zap"
 	"net/http"
 )
