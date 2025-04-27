@@ -5,9 +5,9 @@ import (
 	"encoding/json"
 	"errors"
 	"github.com/authenticvision/attestation-go/paserk"
-	"github.com/authenticvision/util-go/httplog"
 	"github.com/authenticvision/util-go/httputil"
-	"go.uber.org/zap"
+	"github.com/authenticvision/util-go/logutil"
+	"log/slog"
 	"net/http"
 )
 
@@ -75,8 +75,8 @@ func (s *Middleware) Middleware(handler http.Handler) http.Handler {
 			}
 		}
 
-		log := httplog.FromRequest(r)
-		log = log.With(zap.String("sip4_token", token))
+		log := logutil.FromContext(r.Context())
+		log = log.With(slog.String("sip4_token", token))
 
 		// SIP token validation
 		// expiration checks are handled by the default rule added in NewParser
@@ -85,45 +85,45 @@ func (s *Middleware) Middleware(handler http.Handler) http.Handler {
 		p := paseto.NewParser()
 		footer, err := p.UnsafeParseFooter(paseto.V4Public, token)
 		if err != nil {
-			log.Warn("SIP token parsing failed", zap.Error(err))
+			log.Warn("SIP token parsing failed", logutil.Err(err))
 			http.Error(w, "SIP token parsing failed", http.StatusBadRequest)
 			return
 		}
 		kid, err := paserk.ParseKeyIDFooter(string(footer))
 		if err != nil {
-			log.Warn("SIP token footer parsing failed", zap.Error(err))
+			log.Warn("SIP token footer parsing failed", logutil.Err(err))
 			http.Error(w, "SIP token footer parsing failed", http.StatusBadRequest)
 			return
 		}
 		publicKey, err := s.KeyStore.GetPublicKey(kid)
 		if errors.Is(err, ErrNoSuchKey) {
-			log.Warn("no such SIPv4 key", zap.Error(err))
+			log.Warn("no such SIPv4 key", logutil.Err(err))
 			http.Error(w, "SIP key not trusted", http.StatusForbidden)
 			return
 		} else if err != nil {
-			log.Warn("could not retrieve SIPv4 key", zap.Error(err))
+			log.Warn("could not retrieve SIPv4 key", logutil.Err(err))
 			http.Error(w, "SIP key unavailable", http.StatusServiceUnavailable)
 			return
 		}
 		t, err := p.ParseV4Public(publicKey, token, nil)
 		if err != nil {
-			log.Warn("SIP token decryption failed", zap.Error(err))
+			log.Warn("SIP token decryption failed", logutil.Err(err))
 			http.Error(w, "SIP token invalid", http.StatusForbidden)
 			return
 		}
 		if err := json.Unmarshal(t.ClaimsJSON(), &claims); err != nil {
-			log.Warn("claims unmarshalling failed", zap.Error(err))
+			log.Warn("claims unmarshalling failed", logutil.Err(err))
 			http.Error(w, "SIP token invalid", http.StatusInternalServerError)
 			return
 		}
 		if claims.Version != Version {
-			log.Warn("SIP token has wrong version", zap.Int("expected", 4),
-				zap.Int("got", claims.Version), zap.Error(err))
+			log.Warn("SIP token has wrong version", slog.Int("expected", 4),
+				slog.Int("got", claims.Version), logutil.Err(err))
 			http.Error(w, "SIP token has wrong version", http.StatusBadRequest)
 			return
 		}
 
-		log = log.With(zap.String("slid", string(claims.SLID)))
+		log = log.With(slog.String("slid", string(claims.SLID)))
 		r = httputil.RequestWithValue(r, log)
 		r = httputil.RequestWithValue(r, &claims)
 		handler.ServeHTTP(w, r)
