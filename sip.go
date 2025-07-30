@@ -2,10 +2,10 @@ package attestation
 
 import (
 	"aidanwoods.dev/go-paseto"
+	"context"
 	"encoding/json"
 	"errors"
 	"github.com/authenticvision/attestation-go/paserk"
-	"github.com/authenticvision/util-go/httputil"
 	"github.com/authenticvision/util-go/logutil"
 	"log/slog"
 	"net/http"
@@ -124,15 +124,17 @@ func (s *Middleware) Middleware(handler http.Handler) http.Handler {
 		}
 
 		log = log.With(slog.String("slid", string(claims.SLID)))
-		r = httputil.RequestWithValue(r, log)
-		r = httputil.RequestWithValue(r, &claims)
-		handler.ServeHTTP(w, r)
+		ctx := r.Context()
+		ctx = logutil.WithLogContext(r.Context(), log)
+		ctx = context.WithValue(ctx, tokenTag{}, &claims)
+		handler.ServeHTTP(w, r.WithContext(ctx))
 	})
 }
 
-func FromRequest(r *http.Request) *Token {
-	var tag *Token
-	if v, ok := r.Context().Value(tag).(*Token); ok {
+type tokenTag struct{}
+
+func FromContext(ctx context.Context) *Token {
+	if v, ok := ctx.Value(tokenTag{}).(*Token); ok {
 		return v
 	} else {
 		return nil
