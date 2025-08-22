@@ -1,13 +1,14 @@
 package paserk
 
 import (
-	"aidanwoods.dev/go-paseto"
 	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
-	"golang.org/x/crypto/blake2b"
 	"strings"
+
+	"aidanwoods.dev/go-paseto"
+	"golang.org/x/crypto/blake2b"
 )
 
 // ParsePublic loads a k4.public-encoded v4 public key

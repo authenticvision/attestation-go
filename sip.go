@@ -1,14 +1,15 @@
 package attestation
 
 import (
-	"aidanwoods.dev/go-paseto"
 	"context"
 	"encoding/json"
 	"errors"
-	"github.com/authenticvision/attestation-go/paserk"
-	"github.com/authenticvision/util-go/logutil"
 	"log/slog"
 	"net/http"
+
+	"aidanwoods.dev/go-paseto"
+	"github.com/authenticvision/attestation-go/paserk"
+	"github.com/authenticvision/util-go/logutil"
 )
 
 const Version = 4

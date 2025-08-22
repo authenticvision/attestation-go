@@ -1,10 +1,11 @@
 package paserk
 
 import (
-	"aidanwoods.dev/go-paseto"
 	"encoding/hex"
-	"github.com/stretchr/testify/assert"
 	"testing"
+
+	"aidanwoods.dev/go-paseto"
+	"github.com/stretchr/testify/assert"
 )
 
 func mustDecodeHex(s string) []byte {

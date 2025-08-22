@@ -1,13 +1,14 @@
 package attestation
 
 import (
-	"aidanwoods.dev/go-paseto"
 	"errors"
 	"fmt"
-	"github.com/authenticvision/attestation-go/paserk"
 	"io"
 	"net/http"
 	"sync"
+
+	"aidanwoods.dev/go-paseto"
+	"github.com/authenticvision/attestation-go/paserk"
 )
 
 var ErrNoSuchKey = errors.New("no such SIPv4 key")
