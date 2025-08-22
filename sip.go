@@ -9,6 +9,7 @@ import (
 
 	"aidanwoods.dev/go-paseto"
 	"github.com/authenticvision/attestation-go/paserk"
+	"github.com/authenticvision/util-go/httpp"
 	"github.com/authenticvision/util-go/logutil"
 )
 
@@ -55,81 +56,72 @@ type Token struct {
 type Middleware struct {
 	KeyStore *KeyStore
 	Required bool
+	Param    string
 }
 
 func NewMiddleware() *Middleware {
-	return &Middleware{KeyStore: SharedKeyStore, Required: true}
+	return &Middleware{
+		KeyStore: SharedKeyStore,
+		Required: true,
+		Param:    "av_sip4",
+	}
 }
 
-func (s *Middleware) Middleware(handler http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		token := r.URL.Query().Get("av_sip4")
-		if token == "" {
-			if s.Required {
-				http.Error(w, "This server serves responses for Authentic Vision Mobile SDK "+
-					"applications and cannot be used directly. The av_sip4 query parameter is required.",
-					http.StatusBadRequest)
-				return
-			} else {
-				handler.ServeHTTP(w, r)
-				return
-			}
-		}
+func (m *Middleware) Middleware(next httpp.Handler) httpp.Handler {
+	return &handler{m: m, next: next}
+}
 
-		log := logutil.FromContext(r.Context())
-		log = log.With(slog.String("sip4_token", token))
+type handler struct {
+	m    *Middleware
+	next httpp.Handler
+}
 
-		// SIP token validation
-		// expiration checks are handled by the default rule added in NewParser
-		var err error
-		var claims Token
-		p := paseto.NewParser()
-		footer, err := p.UnsafeParseFooter(paseto.V4Public, token)
-		if err != nil {
-			log.Warn("SIP token parsing failed", logutil.Err(err))
-			http.Error(w, "SIP token parsing failed", http.StatusBadRequest)
-			return
+func (h *handler) ServeErrHTTP(w http.ResponseWriter, r *http.Request) error {
+	token := r.URL.Query().Get("av_sip4")
+	if token == "" {
+		if h.m.Required {
+			return httpp.Unauthorized("This server serves responses for Authentic Vision Mobile SDK " +
+				"applications and cannot be used directly. The av_sip4 query parameter is required.")
+		} else {
+			return h.next.ServeErrHTTP(w, r)
 		}
-		kid, err := paserk.ParseKeyIDFooter(string(footer))
-		if err != nil {
-			log.Warn("SIP token footer parsing failed", logutil.Err(err))
-			http.Error(w, "SIP token footer parsing failed", http.StatusBadRequest)
-			return
-		}
-		publicKey, err := s.KeyStore.GetPublicKey(kid)
-		if errors.Is(err, ErrNoSuchKey) {
-			log.Warn("no such SIPv4 key", logutil.Err(err))
-			http.Error(w, "SIP key not trusted", http.StatusForbidden)
-			return
-		} else if err != nil {
-			log.Warn("could not retrieve SIPv4 key", logutil.Err(err))
-			http.Error(w, "SIP key unavailable", http.StatusServiceUnavailable)
-			return
-		}
-		t, err := p.ParseV4Public(publicKey, token, nil)
-		if err != nil {
-			log.Warn("SIP token decryption failed", logutil.Err(err))
-			http.Error(w, "SIP token invalid", http.StatusForbidden)
-			return
-		}
-		if err := json.Unmarshal(t.ClaimsJSON(), &claims); err != nil {
-			log.Warn("claims unmarshalling failed", logutil.Err(err))
-			http.Error(w, "SIP token invalid", http.StatusInternalServerError)
-			return
-		}
-		if claims.Version != Version {
-			log.Warn("SIP token has wrong version", slog.Int("expected", 4),
-				slog.Int("got", claims.Version), logutil.Err(err))
-			http.Error(w, "SIP token has wrong version", http.StatusBadRequest)
-			return
-		}
+	}
 
-		log = log.With(slog.String("slid", string(claims.SLID)))
-		ctx := r.Context()
-		ctx = logutil.WithLogContext(r.Context(), log)
-		ctx = context.WithValue(ctx, tokenTag{}, &claims)
-		handler.ServeHTTP(w, r.WithContext(ctx))
-	})
+	// SIP token validation
+	// expiration checks are handled by the default rule added in NewParser
+	var err error
+	var claims Token
+	p := paseto.NewParser()
+	footer, err := p.UnsafeParseFooter(paseto.V4Public, token)
+	if err != nil {
+		return httpp.BadRequest(err, "invalid SIP token format")
+	}
+	kid, err := paserk.ParseKeyIDFooter(string(footer))
+	if err != nil {
+		return httpp.BadRequest(err, "invalid SIP token footer")
+	}
+	publicKey, err := h.m.KeyStore.GetPublicKey(kid)
+	if errors.Is(err, ErrNoSuchKey) {
+		return httpp.Forbidden("SIP key is not trusted")
+	} else if err != nil {
+		return httpp.Err(nil, http.StatusServiceUnavailable, "SIP key service unavailable")
+	}
+	t, err := p.ParseV4Public(publicKey, token, nil)
+	if err != nil {
+		return httpp.Err(err, http.StatusForbidden, "SIP token rejected")
+	}
+	if err := json.Unmarshal(t.ClaimsJSON(), &claims); err != nil {
+		return httpp.BadRequest(err, "invalid SIP token claims")
+	}
+	if claims.Version != Version {
+		return httpp.BadRequest(nil, "unsupported SIP token version")
+	}
+
+	ctx := r.Context()
+	log := logutil.FromContext(ctx).With(slog.String("slid", string(claims.SLID)))
+	ctx = logutil.WithLogContext(r.Context(), log)
+	ctx = context.WithValue(ctx, tokenTag{}, &claims)
+	return h.next.ServeErrHTTP(w, r.WithContext(ctx))
 }
 
 type tokenTag struct{}
