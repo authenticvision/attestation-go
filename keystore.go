@@ -55,27 +55,27 @@ func (ks *KeyStore) GetPublicKey(id string) (key paseto.V4AsymmetricPublicKey, e
 }
 
 func (ks *KeyStore) getPublicKeyForHost(id, host string) (key paseto.V4AsymmetricPublicKey, err error) {
-	if resp, err := ks.Client.Get("https://" + host + "/v4/" + id); err != nil {
+	resp, err := ks.Client.Get("https://" + host + "/v4/" + id)
+	if err != nil {
 		return key, fmt.Errorf("failed to get key: %w", err)
+	}
+	defer func() { _ = resp.Body.Close() }()
+
+	if resp.StatusCode == http.StatusNotFound {
+		return key, ErrNoSuchKey
+	}
+	if resp.StatusCode != http.StatusOK {
+		return key, fmt.Errorf("non-ok HTTP response code %d", resp.StatusCode)
+	}
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return key, fmt.Errorf("failed to read key request body: %w", err)
+	}
+
+	if key, err := paserk.ParsePublic(string(body)); err != nil {
+		return key, fmt.Errorf("failed to parse public key: %w", err)
 	} else {
-		defer resp.Body.Close()
-
-		if resp.StatusCode == http.StatusNotFound {
-			return key, ErrNoSuchKey
-		}
-		if resp.StatusCode != http.StatusOK {
-			return key, fmt.Errorf("non-ok HTTP response code %d", resp.StatusCode)
-		}
-
-		body, err := io.ReadAll(resp.Body)
-		if err != nil {
-			return key, fmt.Errorf("failed to read key request body: %w", err)
-		}
-
-		if key, err := paserk.ParsePublic(string(body)); err != nil {
-			return key, fmt.Errorf("failed to parse public key: %w", err)
-		} else {
-			return key, nil
-		}
+		return key, nil
 	}
 }

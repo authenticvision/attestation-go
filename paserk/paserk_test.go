@@ -17,9 +17,6 @@ func mustDecodeHex(s string) []byte {
 }
 
 func TestEncode(t *testing.T) {
-	type args struct {
-		key interface{ ExportBytes() []byte }
-	}
 	tests := []struct {
 		name string
 		key  string
@@ -44,9 +41,6 @@ func TestEncode(t *testing.T) {
 }
 
 func TestKeyID_Public(t *testing.T) {
-	type args struct {
-		key interface{ ExportBytes() []byte }
-	}
 	tests := []struct {
 		name string
 		key  string
