@@ -45,6 +45,7 @@ type Token struct {
 	Expiration RFC3339Time       `json:"exp"`
 	IssuedAt   RFC3339Time       `json:"iat"`
 	SessionID  string            `json:"jti"`
+	InstallID  string            `json:"sub,omitempty"`
 	SLID       SLID36            `json:"slid"`
 	GTIN       string            `json:"gtin,omitempty"`
 	Result     Result            `json:"result"`
