@@ -35,8 +35,10 @@ const (
 )
 
 type Location struct {
-	Latitude  float64 `json:"lat"`
-	Longitude float64 `json:"lon"`
+	Latitude    *float64 `json:"lat,omitempty"`
+	Longitude   *float64 `json:"lon,omitempty"`
+	Country     string   `json:"country,omitempty"`
+	Subdivision string   `json:"subdivision,omitempty"`
 }
 
 type Token struct {
