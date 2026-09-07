@@ -53,6 +53,7 @@ type Token struct {
 	Result     Result            `json:"result"`
 	Reason     Reason            `json:"reason"`
 	Location   *Location         `json:"location,omitempty"`
+	ExtCode    []byte            `json:"extcode,omitempty"`
 	ExtRefs    []json.RawMessage `json:"extrefs,omitempty"`
 }
 
